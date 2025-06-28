@@ -1,0 +1,72 @@
+[project]
+name = "idi-zendesk-sdk"
+version = "0.1.0"
+description = "Zendesk SDK"
+authors = [
+    { name = "Bradley Reynolds", email = "bradley.reynolds@impressdesigns.com" },
+]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.13"
+dependencies = ["pydantic>=2.9.2", "httpx>=0.27.2"]
+
+[project.optional-dependencies]
+dev = [
+    # DX
+    "nox>=2024.4.15",
+    "pre-commit>=3.7.1",
+    # Linters
+    "ruff>=0.5.2",
+    "mypy>=1.10.1",
+]
+docs = [
+    "sphinx>=7.4.4",
+    "furo>=2024.5.6",
+    "sphinx-autoapi>=3.1.2",
+    "releases>=2.1.1",
+]
+tests = ["pytest>=8.2.2", "pytest-randomly>=3.15.0", "coverage>=7.6.1"]
+
+[project.urls]
+repository = "https://github.com/impressdesigns/zendesk-sdk/"
+documentation = "https://impressdesigns.dev/zendesk-sdk/"
+
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "zendesk_sdk"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 130
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "CPY001", # (Missing copyright notice at top of file) - No license
+]
+
+[tool.ruff.lint.extend-per-file-ignores]
+"docs/*" = [
+    "INP001", # (File `docs/conf.py` is part of an implicit namespace package. Add an `__init__.py`.) - Docs are not modules
+]
+"tests/*" = [
+    "S101",   # (Use of `assert` detected) - Yes, that's the point
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["zendesk_sdk"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+
+[tool.coverage.run]
+source = ["zendesk_sdk"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"

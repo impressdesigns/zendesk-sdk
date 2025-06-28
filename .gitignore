@@ -1,0 +1,9 @@
+# Packaging
+*.egg-info
+dist
+
+# Cache
+__pycache__
+
+# Docs
+docs/build

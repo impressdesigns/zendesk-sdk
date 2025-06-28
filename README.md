@@ -1,2 +1,3 @@
-# zendesk-sdk
+# Zendesk SDK
+
 Zendesk SDK
