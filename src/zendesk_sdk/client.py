@@ -112,7 +112,7 @@ class ZendeskServices:
         if status is not None:
             args["status"] = status
         if comment is not None:
-            args["comment"] = {
+            args["comment"] = {  # type: ignore[assignment] # false positive
                 "body": comment,
                 "public": comment_is_public,
             }
