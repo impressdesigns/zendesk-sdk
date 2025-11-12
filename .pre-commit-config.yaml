@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
     hooks:
       - id: check-case-conflict
       - id: check-merge-conflict
@@ -15,6 +15,15 @@ repos:
         exclude: .devcontainer/devcontainer-lock.json
 
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.7.16
+    rev: 54483406207ccf6b9e961db339672485700c3db4  # frozen: 0.9.8
     hooks:
       - id: uv-lock
+      - id: uv-export
+        args: ["--quiet", "--frozen", "--all-groups", "--output-file=requirements.txt"]
+      - id: uv-export
+        args: ["--quiet", "--frozen", "--all-groups", "--format=pylock.toml", "--output-file=pylock.toml"]
+
+  - repo: https://github.com/woodruffw/zizmor-pre-commit
+    rev: 86ee5ea442ee969842e00913c6b76c060a7aa8ef  # frozen: v1.16.3
+    hooks:
+      - id: zizmor
