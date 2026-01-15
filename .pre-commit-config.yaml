@@ -23,7 +23,7 @@ repos:
       - id: uv-export
         args: ["--quiet", "--frozen", "--all-groups", "--format=pylock.toml", "--output-file=pylock.toml"]
 
-  - repo: https://github.com/woodruffw/zizmor-pre-commit
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
     rev: 86ee5ea442ee969842e00913c6b76c060a7aa8ef  # frozen: v1.16.3
     hooks:
       - id: zizmor
