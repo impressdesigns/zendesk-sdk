@@ -18,10 +18,6 @@ repos:
     rev: 54483406207ccf6b9e961db339672485700c3db4  # frozen: 0.9.8
     hooks:
       - id: uv-lock
-      - id: uv-export
-        args: ["--quiet", "--frozen", "--all-groups", "--output-file=requirements.txt"]
-      - id: uv-export
-        args: ["--quiet", "--frozen", "--all-groups", "--format=pylock.toml", "--output-file=pylock.toml"]
 
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
     rev: 86ee5ea442ee969842e00913c6b76c060a7aa8ef  # frozen: v1.16.3
