@@ -15,11 +15,11 @@ repos:
         exclude: .devcontainer/devcontainer-lock.json
 
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 54483406207ccf6b9e961db339672485700c3db4  # frozen: 0.9.8
+    rev: 8afdb18d56d3bd3edea0c4ddde96965d6894f5f3  # frozen: 0.9.26
     hooks:
       - id: uv-lock
 
   - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: 86ee5ea442ee969842e00913c6b76c060a7aa8ef  # frozen: v1.16.3
+    rev: b546b77c44c466a54a42af5499dcc0dcc1a3193f  # frozen: v1.22.0
     hooks:
       - id: zizmor
