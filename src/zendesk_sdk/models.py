@@ -11,6 +11,13 @@ class _BaseModel(PydanticBaseModel, strict=True):
     """Base model for all Zendesk models."""
 
 
+class _OAuthTokenResponse(_BaseModel):
+    """Validated response from the client credentials token endpoint."""
+
+    access_token: str = Field(min_length=1)
+    expires_in: int = Field(gt=0)
+
+
 class Attachment(_BaseModel):
     """Attachment model."""
 

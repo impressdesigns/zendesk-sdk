@@ -1,6 +1,6 @@
 [project]
 name = "idi-zendesk-sdk"
-version = "0.1.0"
+version = "0.2.0"
 description = "Zendesk SDK"
 authors = [
     { name = "Bradley Reynolds", email = "bradley.reynolds@impressdesigns.com" },
@@ -63,7 +63,9 @@ ignore = [
     "INP001", # (File `docs/conf.py` is part of an implicit namespace package. Add an `__init__.py`.) - Docs are not modules
 ]
 "tests/*" = [
+    "PLR2004", # (Magic value used in comparison) - Tests assert exact HTTP and model values
     "S101", # (Use of `assert` detected) - Yes, that's the point
+    "S106", # (Possible hardcoded password) - OAuth credentials in tests are inert fixtures
 ]
 
 [tool.ruff.lint.isort]
