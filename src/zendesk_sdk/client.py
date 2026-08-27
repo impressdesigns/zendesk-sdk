@@ -103,17 +103,20 @@ class ZendeskServices:
         path: str,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> Response:
         """Make a request to Zendesk."""
         access_token = self._get_access_token()
 
         def send(token: str) -> Response:
+            request_headers = dict(headers or {})
+            request_headers["Authorization"] = f"Bearer {token}"
             return self.client.request(
                 method=method,
                 url=path,
                 params=params,
                 json=json,
-                headers={"Authorization": f"Bearer {token}"},
+                headers=request_headers,
             )
 
         response = send(access_token)
@@ -152,27 +155,55 @@ class ZendeskServices:
         response.raise_for_status()
         return Ticket.model_validate(response.json()["ticket"])
 
-    def create_ticket(
+    def create_ticket(  # noqa: PLR0913
         self,
         subject: str,
         body: str,
-        group_id: int,
+        *,
+        requester_email: str,
+        requester_name: str | None = None,
+        tags: list[str] | None = None,
+        group_id: int | None = None,
         priority: Literal["urgent", "high", "normal", "low"] = "normal",
+        external_id: str | None = None,
+        idempotency_key: str | None = None,
     ) -> Ticket:
-        """Find and load to base64."""
+        """Create a ticket on behalf of a requester."""
+        if not requester_email.strip():
+            message = "requester_email must not be blank."
+            raise ValueError(message)
+        if requester_name is not None and not requester_name.strip():
+            message = "requester_name must not be blank when provided."
+            raise ValueError(message)
+        if idempotency_key is not None and not idempotency_key.strip():
+            message = "idempotency_key must not be blank when provided."
+            raise ValueError(message)
+
+        requester = {"email": requester_email}
+        if requester_name is not None:
+            requester["name"] = requester_name
+
+        ticket: dict[str, Any] = {
+            "comment": {
+                "body": body,
+            },
+            "priority": priority,
+            "requester": requester,
+            "subject": subject,
+        }
+        if tags is not None:
+            ticket["tags"] = tags
+        if group_id is not None:
+            ticket["group_id"] = group_id
+        if external_id is not None:
+            ticket["external_id"] = external_id
+
+        headers = {"Idempotency-Key": idempotency_key} if idempotency_key is not None else None
         response = self._make_request(
             method="POST",
             path="/api/v2/tickets",
-            json={
-                "ticket": {
-                    "group_id": group_id,
-                    "comment": {
-                        "html_body": body,
-                    },
-                    "priority": priority,
-                    "subject": subject,
-                },
-            },
+            json={"ticket": ticket},
+            headers=headers,
         )
         response.raise_for_status()
         return Ticket.model_validate(response.json()["ticket"])

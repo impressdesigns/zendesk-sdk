@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable
+from typing import Any
 
 import httpx
 import pytest
@@ -179,6 +180,39 @@ def test_unauthorized_api_request_forces_one_refresh_and_retry() -> None:
     assert [request.headers["Authorization"] for request in api_requests] == ["Bearer token-1", "Bearer token-2"]
 
 
+def test_unauthorized_ticket_creation_preserves_idempotency_on_retry() -> None:
+    """A ticket retry preserves its idempotency key and request body."""
+    token_requests = 0
+    ticket_requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal token_requests
+        if request.url.path == "/oauth/tokens":
+            token_requests += 1
+            return _token_response(request, f"token-{token_requests}")
+        ticket_requests.append(request)
+        if len(ticket_requests) == 1:
+            return httpx.Response(401, request=request)
+        return _ticket_response(request)
+
+    client = _build_client(handler)
+    ticket = client.create_ticket(
+        "Returned shipment",
+        "How should we proceed?",
+        requester_email="customer@example.com",
+        idempotency_key="carrier-return:123",
+    )
+
+    assert ticket.id == 123
+    assert token_requests == 2
+    assert [request.headers["Authorization"] for request in ticket_requests] == ["Bearer token-1", "Bearer token-2"]
+    assert [request.headers["Idempotency-Key"] for request in ticket_requests] == [
+        "carrier-return:123",
+        "carrier-return:123",
+    ]
+    assert ticket_requests[0].content == ticket_requests[1].content
+
+
 def test_second_unauthorized_response_is_not_retried() -> None:
     """A persistent 401 is returned after exactly one refresh attempt."""
     token_requests = 0
@@ -199,6 +233,91 @@ def test_second_unauthorized_response_is_not_retried() -> None:
 
     assert token_requests == 2
     assert api_requests == 2
+
+
+def test_create_ticket_sends_all_supported_properties() -> None:
+    """Ticket creation sends requester, tags, group, external id, and idempotency."""
+    ticket_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal ticket_request
+        if request.url.path == "/oauth/tokens":
+            return _token_response(request, "access-token")
+        ticket_request = request
+        return _ticket_response(request, ticket_id=987654321)
+
+    client = _build_client(handler)
+    ticket = client.create_ticket(
+        "Returned order 1001",
+        "Return details\n\nPlease advise.",
+        requester_email="customer@example.com",
+        requester_name="Customer Name",
+        tags=["iditoolscarrierreturn", "rts-52"],
+        group_id=42,
+        priority="high",
+        external_id="carrier-return:52",
+        idempotency_key="carrier-return:52",
+    )
+
+    assert ticket.id == 987654321
+    assert ticket_request is not None
+    assert ticket_request.method == "POST"
+    assert ticket_request.url.path == "/api/v2/tickets"
+    assert ticket_request.headers["Authorization"] == "Bearer access-token"
+    assert ticket_request.headers["Idempotency-Key"] == "carrier-return:52"
+    assert json.loads(ticket_request.content) == {
+        "ticket": {
+            "comment": {"body": "Return details\n\nPlease advise."},
+            "external_id": "carrier-return:52",
+            "group_id": 42,
+            "priority": "high",
+            "requester": {"email": "customer@example.com", "name": "Customer Name"},
+            "subject": "Returned order 1001",
+            "tags": ["iditoolscarrierreturn", "rts-52"],
+        },
+    }
+
+
+def test_create_ticket_omits_optional_properties() -> None:
+    """Optional ticket fields and the idempotency header are omitted when unset."""
+    ticket_request: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal ticket_request
+        if request.url.path == "/oauth/tokens":
+            return _token_response(request, "access-token")
+        ticket_request = request
+        return _ticket_response(request)
+
+    client = _build_client(handler)
+    client.create_ticket("Subject", "Body", requester_email="existing@example.com")
+
+    assert ticket_request is not None
+    payload = json.loads(ticket_request.content)["ticket"]
+    assert payload["requester"] == {"email": "existing@example.com"}
+    assert "group_id" not in payload
+    assert "tags" not in payload
+    assert "external_id" not in payload
+    assert "Idempotency-Key" not in ticket_request.headers
+
+
+@pytest.mark.parametrize(
+    ("keyword_arguments", "expected_message"),
+    [
+        ({"requester_email": " "}, "requester_email"),
+        ({"requester_email": "customer@example.com", "requester_name": " "}, "requester_name"),
+        ({"requester_email": "customer@example.com", "idempotency_key": " "}, "idempotency_key"),
+    ],
+)
+def test_create_ticket_rejects_blank_required_values(
+    keyword_arguments: dict[str, Any],
+    expected_message: str,
+) -> None:
+    """Invalid ticket inputs fail before an HTTP request is sent."""
+    client = _build_client(lambda request: (_ for _ in ()).throw(AssertionError(request.url)))
+
+    with pytest.raises(ValueError, match=expected_message):
+        client.create_ticket("Subject", "Body", **keyword_arguments)
 
 
 @pytest.mark.parametrize(

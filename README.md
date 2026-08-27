@@ -25,3 +25,23 @@ zendesk = ZendeskServices(
 The SDK requests 30-minute access tokens and caches them in memory until shortly
 before expiry. An API request that receives a `401 Unauthorized` response
 refreshes the token and is retried once.
+
+## Creating a ticket
+
+```python
+ticket = zendesk.create_ticket(
+    "A shipment was returned",
+    "Return details\n\nPlease let us know how you would like to proceed.",
+    requester_email="customer@example.com",
+    requester_name="Customer Name",
+    tags=["iditoolscarrierreturn", "rts-1234"],
+    external_id="carrier-return:1234",
+    idempotency_key="carrier-return:1234",
+)
+
+print(ticket.id)
+```
+
+`group_id` is optional. When provided, Zendesk assigns the new ticket directly
+to that group. `Idempotency-Key` values are forwarded to Zendesk, whose ticket
+creation cache currently retains them for two hours.
