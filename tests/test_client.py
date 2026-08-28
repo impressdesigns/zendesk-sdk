@@ -267,7 +267,7 @@ def test_create_ticket_sends_all_supported_properties() -> None:
     assert ticket_request.headers["Idempotency-Key"] == "carrier-return:52"
     assert json.loads(ticket_request.content) == {
         "ticket": {
-            "comment": {"body": "Return details\n\nPlease advise."},
+            "comment": {"body": "Return details\n\nPlease advise.", "public": True},
             "external_id": "carrier-return:52",
             "group_id": 42,
             "priority": "high",
