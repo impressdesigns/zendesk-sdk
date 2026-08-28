@@ -115,9 +115,15 @@ jobs:
           path: coverage-files
 
       # A fork pull request's GITHUB_TOKEN is read-only, so the upload would hard-fail
-      # rather than no-op. Skip it there instead of failing every outside contribution.
+      # rather than no-op. Dependabot's pull_request runs are documented as read-only by
+      # default too, and nearly all traffic here is Dependabot -- so skip both rather
+      # than risk reddening every bump. A dependency bump does not move coverage, so
+      # there is nothing to lose either way.
       - name: Upload coverage report
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        if: >-
+          github.event_name != 'pull_request'
+          || (github.event.pull_request.head.repo.full_name == github.repository
+              && github.event.pull_request.user.login != 'dependabot[bot]')
         uses: actions/upload-code-coverage@1c15be36fc3733ba839b1dd643bd9556e4426dc1 # v1.4.1
         with:
           file: coverage-files/coverage.xml
