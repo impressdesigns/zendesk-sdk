@@ -1,5 +1,5 @@
-idi-zenddesk-sdk
-====================
+idi-zendesk-sdk
+===============
 
 Zendesk SDK
 

@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from httpx import Client, Response
+from niquests import Response, Session
 
 from .exceptions import TicketClosedError
 from .models import Ticket, TicketComment
@@ -19,7 +19,7 @@ class ZendeskServices:
         timeout: float,
     ) -> None:
         """Initialize the ZendeskServices class."""
-        self.client = Client(
+        self.client = Session(
             base_url=base_url,
             auth=(username, password),
             timeout=timeout,

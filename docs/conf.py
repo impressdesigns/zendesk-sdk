@@ -26,12 +26,9 @@ extensions = [
 ]
 
 autoapi_type: str = "python"
-autoapi_dirs: list[str] = ["../../src"]
+autoapi_dirs: list[str] = ["../src"]
 
 intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}
-
-# Add any paths that contain templates here, relative to this directory.
-templates_path: list[str] = ["_templates"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -43,11 +40,6 @@ exclude_patterns: list[str] = ["_build", "Thumbs.db", ".DS_Store"]
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 html_theme: str = "furo"
-
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
-# so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path: list[str] = ["_static"]
 
 releases_github_path = REPO_LINK.removeprefix("https://github.com/")
 releases_release_uri = f"{REPO_LINK}/releases/tag/v%s"

@@ -19,7 +19,7 @@ CLEANABLE_TARGETS = [
     # Centralized tool cache
     "./.cache",
     # Built documentation
-    "./docs/build",
+    "./site",
     # Test reporting artifacts
     "./junit.xml",
     "./coverage.xml",
@@ -40,6 +40,15 @@ def lints(session: nox.Session) -> None:
     session.run("ruff", "check", "--fix", ".")
     session.run("mypy", "--strict", "src/", "tests/")
     session.run("ty", "check", ".")
+
+
+@nox.session
+def docs(session: nox.Session) -> None:
+    """Build the documentation.
+
+    Requires the ``docs`` dependency group: ``uv sync --group docs``.
+    """
+    session.run("sphinx-build", "--builder", "dirhtml", "--nitpicky", "docs", "site")
 
 
 @nox.session

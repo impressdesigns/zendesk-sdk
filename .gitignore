@@ -7,7 +7,7 @@ __pycache__
 .cache/
 
 # Docs
-docs/build
+site/
 
 # Test reporting
 junit.xml
