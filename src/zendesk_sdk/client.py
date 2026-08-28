@@ -186,6 +186,7 @@ class ZendeskServices:
         ticket: dict[str, Any] = {
             "comment": {
                 "body": body,
+                "public": True,
             },
             "priority": priority,
             "requester": requester,
