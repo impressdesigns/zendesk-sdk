@@ -1,11 +1,15 @@
 """Zendesk API client."""
 
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from niquests import Response, Session
 
 from .exceptions import TicketClosedError
 from .models import Ticket, TicketComment
+
+# Refresh a little early so a request issued at the boundary does not race the expiry.
+TOKEN_EXPIRY_MARGIN = timedelta(seconds=30)
 
 
 class ZendeskServices:
@@ -14,16 +18,43 @@ class ZendeskServices:
     def __init__(
         self,
         base_url: str,
-        username: str,
-        password: str,
+        client_id: str,
+        client_secret: str,
+        scope: str,
         timeout: float,
     ) -> None:
         """Initialize the ZendeskServices class."""
         self.client = Session(
             base_url=base_url,
-            auth=(username, password),
             timeout=timeout,
         )
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._scope = scope
+        self._access_token: str | None = None
+        self._access_token_expires_at = datetime.min.replace(tzinfo=UTC)
+
+    def _get_access_token(self) -> str:
+        """Return an access token, requesting a new one when the cached one has expired."""
+        if self._access_token is not None and datetime.now(UTC) < self._access_token_expires_at:
+            return self._access_token
+
+        response = self.client.post(
+            "/oauth/tokens",
+            json={
+                "grant_type": "client_credentials",
+                "client_id": self._client_id,
+                "client_secret": self._client_secret,
+                "scope": self._scope,
+            },
+        )
+        response.raise_for_status()
+        token = response.json()
+
+        access_token: str = token["access_token"]
+        self._access_token = access_token
+        self._access_token_expires_at = datetime.now(UTC) + timedelta(seconds=token["expires_in"]) - TOKEN_EXPIRY_MARGIN
+        return access_token
 
     def _make_request(
         self,
@@ -36,6 +67,7 @@ class ZendeskServices:
         args: dict[str, str | dict[str, str]] = {
             "url": path,
             "method": method,
+            "auth": self._get_access_token(),
         }
 
         if params is not None:

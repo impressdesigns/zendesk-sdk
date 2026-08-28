@@ -3,6 +3,14 @@ idi-zendesk-sdk
 
 Zendesk SDK
 
+Guides
+------
+
+.. toctree::
+   :maxdepth: 1
+
+   authentication
+
 Module Index
 ------------
 
