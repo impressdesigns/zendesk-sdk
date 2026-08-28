@@ -80,6 +80,9 @@ def linkcode_resolve(domain: str, info: dict) -> str | None:
             last = first + len(lines) - 1
             filename += f"#L{first}-L{last}"
         except OSError, TypeError:
+            # getsourcelines raises OSError when it cannot locate the source (C extensions,
+            # dynamically constructed objects) and TypeError for builtins. Neither is worth
+            # failing a docs build over, so fall back to linking the file without an anchor.
             pass
 
     return f"{REPO_LINK}/blob/main/src/{filename}"
