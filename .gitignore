@@ -4,6 +4,11 @@ dist
 
 # Cache
 __pycache__
+.cache/
 
 # Docs
 docs/build
+
+# Test reporting
+junit.xml
+coverage.xml

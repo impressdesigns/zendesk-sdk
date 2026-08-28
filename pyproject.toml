@@ -21,39 +21,47 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     # DX
-    "nox>=2024.4.15",
-    "pre-commit>=3.7.1",
+    "nox>=2026.8.10",
+    "prek>=0.4.14",
     # Linters
-    "ruff>=0.5.2",
-    "mypy>=1.10.1",
+    "ruff>=0.16.3",
+    "mypy>=2.3.1",
+    "ty>=0.0.72",
 ]
 docs = [
-    "sphinx>=7.4.4",
+    "sphinx>=9.1.0",
     # Theme
-    "furo>=2024.5.6",
+    "furo>=2025.12.19",
     # Extensions
-    "sphinx-autoapi>=3.1.2",
+    "sphinx-autoapi>=3.8.0",
     "releases>=2.1.1",
 ]
 tests = [
-    "coverage>=7.6.1",
-    "pytest>=9.0.0",
+    "coverage>=7.15.2",
+    "pytest>=9.1.1",
     # Extensions
-    "pytest-randomly>=3.15.0",
+    "pytest-randomly>=4.1.0",
 ]
 
 [tool.uv]
-environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+# Sync with Dependabot's uv version
+required-version = ">=0.11.8"
+exclude-newer = "P7D"
+environments = [
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 
 [tool.uv.build-backend]
 module-name = "zendesk_sdk"
 
 [tool.ruff]
-line-length = 130
+line-length = 120
+cache-dir = ".cache/ruff"
 
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
+    "COM812", # (missing-trailing-comma) - Conflicts with formatter
     "CPY001", # (Missing copyright notice at top of file) - No license
 ]
 
@@ -77,11 +85,23 @@ known-first-party = ["zendesk_sdk"]
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
 
+# Still need to tell Mypy to ignore these
+[tool.ty.rules]
+unused-ignore-comment = "ignore"
+
 [tool.mypy]
+pretty = true
+num_workers = 4
+native_parser = true # required by num_workers
 plugins = ["pydantic.mypy"]
+cache_dir = ".cache/mypy"
 
 [tool.coverage.run]
-source = ["zendesk_sdk"]
+branch = true
+source_pkgs = ["zendesk_sdk"]
+source_dirs = ["tests"]
+data_file = ".cache/coverage/.coverage"
 
-[tool.pytest.ini_options]
-addopts = "--strict-markers"
+[tool.pytest]
+strict = true
+cache_dir = ".cache/pytest"

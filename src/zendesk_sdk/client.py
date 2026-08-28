@@ -44,7 +44,7 @@ class ZendeskServices:
         if json is not None:
             args["json"] = json
 
-        return self.client.request(**args)  # type: ignore[arg-type]
+        return self.client.request(**args)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     def search(
         self,
