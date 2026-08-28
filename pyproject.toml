@@ -7,8 +7,8 @@ authors = [
 ]
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.13"
-dependencies = ["pydantic>=2.9.2", "httpx>=0.27.2"]
+requires-python = ">=3.14"
+dependencies = ["pydantic>=2.12", "httpx>=0.27.2"]
 
 [project.urls]
 repository = "https://github.com/impressdesigns/zendesk-sdk/"
@@ -49,7 +49,6 @@ environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
 module-name = "zendesk_sdk"
 
 [tool.ruff]
-target-version = "py313"
 line-length = 130
 
 [tool.ruff.lint]
@@ -65,6 +64,12 @@ ignore = [
 "tests/*" = [
     "S101", # (Use of `assert` detected) - Yes, that's the point
 ]
+
+[tool.ruff.lint.flake8-type-checking]
+# Pydantic evaluates annotations at runtime to build validators, so imports used only
+# in model annotations must stay at runtime scope. Without this, py314's deferred
+# annotations make TC rules think they are safe to move into a type-checking block.
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["zendesk_sdk"]

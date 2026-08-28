@@ -82,7 +82,7 @@ def linkcode_resolve(domain: str, info: dict) -> str | None:
             lines, first = inspect.getsourcelines(val)
             last = first + len(lines) - 1
             filename += f"#L{first}-L{last}"
-        except (OSError, TypeError):
+        except OSError, TypeError:
             pass
 
     return f"{REPO_LINK}/blob/main/src/{filename}"
