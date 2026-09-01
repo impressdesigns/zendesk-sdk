@@ -45,7 +45,9 @@ requester fields are required so Zendesk can create first-time requesters.
    )
 
 Everything after the requester is optional. Pass an ``idempotency_key`` to make a
-retried request return the original ticket instead of filing a duplicate.
+retried request return the original ticket instead of filing a duplicate, and
+``comment_is_public=False`` to open the ticket with an internal note rather than a
+comment the requester is notified about.
 
 Updating
 --------

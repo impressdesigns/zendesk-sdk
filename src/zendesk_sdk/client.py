@@ -123,8 +123,9 @@ class ZendeskServices:
         priority: Literal["urgent", "high", "normal", "low"] = "normal",
         external_id: str | None = None,
         idempotency_key: str | None = None,
+        comment_is_public: bool = True,
     ) -> Ticket:
-        """Create a public ticket on behalf of a requester."""
+        """Create a ticket on behalf of a requester."""
         if not requester_email.strip():
             message = "requester_email must not be blank."
             raise ValueError(message)
@@ -140,7 +141,7 @@ class ZendeskServices:
         ticket: dict[str, Any] = {
             "comment": {
                 "body": body,
-                "public": True,
+                "public": comment_is_public,
             },
             "priority": priority,
             "requester": requester,

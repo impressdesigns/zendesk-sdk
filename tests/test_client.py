@@ -187,6 +187,48 @@ def test_create_ticket_omits_optional_properties(monkeypatch: pytest.MonkeyPatch
     ]
 
 
+def test_create_ticket_can_open_with_an_internal_note(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A caller that asks for a private first comment gets one."""
+    client = _build_client()
+    ticket_requests: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        client.client,
+        "post",
+        lambda *_args, **_kwargs: _response({"access_token": "access-token", "expires_in": 1800}),
+    )
+
+    def request(**kwargs: object) -> MagicMock:
+        ticket_requests.append(kwargs)
+        return _response({"ticket": TICKET})
+
+    monkeypatch.setattr(client.client, "request", request)
+
+    client.create_ticket(
+        "Subject",
+        "Body",
+        requester_email="customer@example.com",
+        requester_name="Customer Name",
+        comment_is_public=False,
+    )
+
+    assert ticket_requests == [
+        {
+            "url": "/api/v2/tickets",
+            "method": "POST",
+            "auth": "access-token",
+            "json": {
+                "ticket": {
+                    "comment": {"body": "Body", "public": False},
+                    "priority": "normal",
+                    "requester": {"email": "customer@example.com", "name": "Customer Name"},
+                    "subject": "Subject",
+                },
+            },
+        },
+    ]
+
+
 @pytest.mark.parametrize(
     ("keyword_arguments", "expected_message"),
     [
