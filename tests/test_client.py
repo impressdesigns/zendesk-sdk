@@ -1,13 +1,13 @@
 """Testing the client."""
 
-from typing import TYPE_CHECKING
+from typing import Any
 from unittest.mock import MagicMock
+
+import pytest
 
 from zendesk_sdk import ZendeskServices
 
-if TYPE_CHECKING:
-    import pytest
-
+CREATED_TICKET_ID = 987654321
 TICKET = {
     "id": 1,
     "status": "open",
@@ -91,3 +91,171 @@ def test_expired_access_token_is_requested_again(monkeypatch: pytest.MonkeyPatch
     client.get_ticket(1)
 
     assert sent_credentials == ["access-token-1", "access-token-2"]
+
+
+def test_create_ticket_sends_all_supported_properties(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ticket creation sends requester, tags, routing, identity, and idempotency."""
+    client = _build_client()
+    ticket_requests: list[dict[str, object]] = []
+
+    def post(url: str, json: dict[str, object]) -> MagicMock:
+        assert url == "/oauth/tokens"
+        assert json["grant_type"] == "client_credentials"
+        return _response({"access_token": "access-token", "expires_in": 1800})
+
+    def request(**kwargs: object) -> MagicMock:
+        ticket_requests.append(kwargs)
+        ticket = dict(TICKET)
+        ticket["id"] = CREATED_TICKET_ID
+        return _response({"ticket": ticket})
+
+    monkeypatch.setattr(client.client, "post", post)
+    monkeypatch.setattr(client.client, "request", request)
+
+    ticket = client.create_ticket(
+        "Returned order 1001",
+        "Return details\n \nPlease advise.",
+        requester_email="customer@example.com",
+        requester_name="Customer Name",
+        tags=["iditoolscarrierreturn", "rts-52"],
+        group_id=42,
+        priority="high",
+        external_id="carrier-return:52",
+        idempotency_key="carrier-return:52",
+    )
+
+    assert ticket.id == CREATED_TICKET_ID
+    assert ticket_requests == [
+        {
+            "url": "/api/v2/tickets",
+            "method": "POST",
+            "auth": "access-token",
+            "json": {
+                "ticket": {
+                    "comment": {"body": "Return details\n \nPlease advise.", "public": True},
+                    "external_id": "carrier-return:52",
+                    "group_id": 42,
+                    "priority": "high",
+                    "requester": {"email": "customer@example.com", "name": "Customer Name"},
+                    "subject": "Returned order 1001",
+                    "tags": ["iditoolscarrierreturn", "rts-52"],
+                },
+            },
+            "headers": {"Idempotency-Key": "carrier-return:52"},
+        },
+    ]
+
+
+def test_create_ticket_omits_optional_properties(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Optional ticket fields and the idempotency header are omitted when unset."""
+    client = _build_client()
+    ticket_requests: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        client.client,
+        "post",
+        lambda *_args, **_kwargs: _response({"access_token": "access-token", "expires_in": 1800}),
+    )
+
+    def request(**kwargs: object) -> MagicMock:
+        ticket_requests.append(kwargs)
+        return _response({"ticket": TICKET})
+
+    monkeypatch.setattr(client.client, "request", request)
+
+    client.create_ticket(
+        "Subject",
+        "Body",
+        requester_email="existing@example.com",
+        requester_name="Existing Customer",
+    )
+
+    assert ticket_requests == [
+        {
+            "url": "/api/v2/tickets",
+            "method": "POST",
+            "auth": "access-token",
+            "json": {
+                "ticket": {
+                    "comment": {"body": "Body", "public": True},
+                    "priority": "normal",
+                    "requester": {"email": "existing@example.com", "name": "Existing Customer"},
+                    "subject": "Subject",
+                },
+            },
+        },
+    ]
+
+
+def test_create_ticket_can_open_with_an_internal_note(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A caller that asks for a private first comment gets one."""
+    client = _build_client()
+    ticket_requests: list[dict[str, object]] = []
+
+    monkeypatch.setattr(
+        client.client,
+        "post",
+        lambda *_args, **_kwargs: _response({"access_token": "access-token", "expires_in": 1800}),
+    )
+
+    def request(**kwargs: object) -> MagicMock:
+        ticket_requests.append(kwargs)
+        return _response({"ticket": TICKET})
+
+    monkeypatch.setattr(client.client, "request", request)
+
+    client.create_ticket(
+        "Subject",
+        "Body",
+        requester_email="customer@example.com",
+        requester_name="Customer Name",
+        comment_is_public=False,
+    )
+
+    assert ticket_requests == [
+        {
+            "url": "/api/v2/tickets",
+            "method": "POST",
+            "auth": "access-token",
+            "json": {
+                "ticket": {
+                    "comment": {"body": "Body", "public": False},
+                    "priority": "normal",
+                    "requester": {"email": "customer@example.com", "name": "Customer Name"},
+                    "subject": "Subject",
+                },
+            },
+        },
+    ]
+
+
+@pytest.mark.parametrize(
+    ("keyword_arguments", "expected_message"),
+    [
+        ({"requester_email": " ", "requester_name": "Customer Name"}, "requester_email"),
+        ({"requester_email": "customer@example.com", "requester_name": " "}, "requester_name"),
+        (
+            {
+                "requester_email": "customer@example.com",
+                "requester_name": "Customer Name",
+                "idempotency_key": " ",
+            },
+            "idempotency_key",
+        ),
+    ],
+)
+def test_create_ticket_rejects_blank_values(
+    monkeypatch: pytest.MonkeyPatch,
+    keyword_arguments: dict[str, Any],
+    expected_message: str,
+) -> None:
+    """Invalid ticket inputs fail before an HTTP request is sent."""
+    client = _build_client()
+    monkeypatch.setattr(
+        client.client,
+        "post",
+        lambda *_args, **_kwargs: pytest.fail("Invalid input must not request an access token."),
+    )
+
+    with pytest.raises(ValueError, match=expected_message):
+        client.create_ticket("Subject", "Body", **keyword_arguments)

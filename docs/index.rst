@@ -10,6 +10,7 @@ Guides
    :maxdepth: 1
 
    authentication
+   tickets
 
 Module Index
 ------------
