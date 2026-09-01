@@ -10,7 +10,7 @@ Guides
    :maxdepth: 1
 
    authentication
-   ticket_creation
+   tickets
 
 Module Index
 ------------
