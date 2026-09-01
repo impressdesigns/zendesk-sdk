@@ -1,6 +1,6 @@
 [project]
 name = "idi-zendesk-sdk"
-version = "0.1.0"
+version = "1.0.0"
 description = "Zendesk SDK"
 authors = [
     { name = "Bradley Reynolds", email = "bradley.reynolds@impressdesigns.com" },
