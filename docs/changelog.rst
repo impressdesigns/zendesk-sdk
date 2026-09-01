@@ -1,7 +1,7 @@
 Changelog
 =========
 
-- :feature:`-` Create public plain-text tickets with requester identity, tags,
+- :feature:`55` Create public plain-text tickets with requester identity, tags,
   optional group routing, external IDs, and idempotency keys. This changes the
   ``create_ticket`` contract for 0.2.0: callers must pass ``requester_email`` and
   ``requester_name`` by keyword; ``group_id`` is now optional and keyword-only.
