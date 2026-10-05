@@ -6,7 +6,7 @@ from typing import Any, Literal
 from niquests import Response, Session
 
 from .exceptions import TicketClosedError
-from .models import Ticket, TicketComment
+from .models import Ticket, TicketComment, TicketCommentPage
 
 # Refresh a little early so a request issued at the boundary does not race the expiry.
 TOKEN_EXPIRY_MARGIN = timedelta(seconds=30)
@@ -170,16 +170,24 @@ class ZendeskServices:
         status: Literal["new", "open", "pending", "hold", "solved", "closed"] | None = None,
         comment: str | None = None,
         comment_is_public: bool = True,  # noqa: FBT001,FBT002
+        *,
+        updated_stamp: datetime | None = None,
     ) -> Ticket:
-        """Update a ticket."""
-        args = {}
+        """Update a ticket, checking for concurrent changes when updated_stamp is provided."""
+        args: dict[str, Any] = {}
         if status is not None:
             args["status"] = status
         if comment is not None:
-            args["comment"] = {  # type: ignore[assignment] # false positive
+            args["comment"] = {
                 "body": comment,
                 "public": comment_is_public,
             }
+        if updated_stamp is not None:
+            if updated_stamp.tzinfo is None or updated_stamp.utcoffset() is None:
+                message = "updated_stamp must include a timezone."
+                raise ValueError(message)
+            args["safe_update"] = True
+            args["updated_stamp"] = updated_stamp.astimezone(UTC).isoformat().replace("+00:00", "Z")
         response = self._make_request(
             method="PUT",
             path=f"/api/v2/tickets/{ticket_id}",
@@ -199,10 +207,39 @@ class ZendeskServices:
         return response.json()["tags"]  # type: ignore[no-any-return]
 
     def get_ticket_comments(self, ticket_id: int) -> list[TicketComment]:
-        """Find and load to base64."""
+        """Return the first page of ticket comments for existing callers."""
         response = self._make_request(
             method="GET",
             path=f"/api/v2/tickets/{ticket_id}/comments",
         )
         response.raise_for_status()
         return [TicketComment.model_validate(comment) for comment in response.json()["comments"]]
+
+    def get_ticket_comments_page(self, ticket_id: int, *, after_cursor: str | None = None) -> TicketCommentPage:
+        """Return one cursor page of comments; the caller follows after_cursor if has_more."""
+        if after_cursor is not None and not after_cursor:
+            message = "after_cursor must not be blank when provided."
+            raise ValueError(message)
+        params: dict[str, Any] = {"page[size]": 100}
+        if after_cursor is not None:
+            params["page[after]"] = after_cursor
+        response = self._make_request(
+            method="GET",
+            path=f"/api/v2/tickets/{ticket_id}/comments",
+            params=params,
+        )
+        response.raise_for_status()
+        page = response.json()
+        metadata = page.get("meta")
+        if not isinstance(metadata, dict) or not isinstance(metadata.get("has_more"), bool):
+            message = "Zendesk comment pagination metadata is missing."
+            raise TypeError(message)
+        next_cursor = metadata.get("after_cursor")
+        if metadata["has_more"] and (not isinstance(next_cursor, str) or not next_cursor):
+            message = "Zendesk comment pagination cursor is missing."
+            raise ValueError(message)
+        return TicketCommentPage(
+            comments=[TicketComment.model_validate(comment) for comment in page["comments"]],
+            has_more=metadata["has_more"],
+            after_cursor=next_cursor if isinstance(next_cursor, str) else None,
+        )
