@@ -50,10 +50,11 @@ exclude-newer = "P7D"
 environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
-exclude-newer-package = { certifi = false }
+exclude-newer-package = { certifi = false, virtualenv = false }
 # certifi 2026.10.19 is the release that distrusts the compromised eMudhra/emSign
 # intermediates (October 2026); it is exempt from exclude-newer until it ages past the window.
-constraint-dependencies = ["certifi>=2026.10.19"]
+# virtualenv 21.14.9 fixes GHSA-c978-59m8-c77v, GHSA-43mp-35q3-x3fq and GHSA-cw65-gx24-rc82 (October 2026).
+constraint-dependencies = ["certifi>=2026.10.19", "virtualenv>=21.14.9"]
 
 [tool.uv.build-backend]
 module-name = "zendesk_sdk"
