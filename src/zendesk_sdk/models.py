@@ -27,6 +27,7 @@ class Ticket(_BaseModel):
     status: Literal["new", "open", "pending", "hold", "solved", "closed"]
     url: str
     created_at: datetime = Field(strict=False)
+    updated_at: datetime | None = Field(default=None, strict=False)
     tags: list[str]
 
 
@@ -37,3 +38,11 @@ class TicketComment(_BaseModel):
     public: bool
     plain_body: str
     attachments: list[Attachment]
+
+
+class TicketCommentPage(_BaseModel):
+    """One cursor page of ticket comments for the caller to traverse."""
+
+    comments: list[TicketComment]
+    has_more: bool
+    after_cursor: str | None
