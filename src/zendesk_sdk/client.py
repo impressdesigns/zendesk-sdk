@@ -1,11 +1,12 @@
 """Zendesk API client."""
 
 from datetime import UTC, datetime, timedelta
+from http import HTTPStatus
 from typing import Any, Literal
 
 from niquests import Response, Session
 
-from .exceptions import TicketClosedError
+from .exceptions import TicketClosedError, TicketUpdateConflictError
 from .models import Ticket, TicketComment, TicketCommentPage
 
 # Refresh a little early so a request issued at the boundary does not race the expiry.
@@ -193,6 +194,9 @@ class ZendeskServices:
             path=f"/api/v2/tickets/{ticket_id}",
             json={"ticket": args},
         )
+        if updated_stamp is not None and response.status_code == HTTPStatus.CONFLICT:
+            msg = f"Ticket #{ticket_id} changed after {args['updated_stamp']}."
+            raise TicketUpdateConflictError(msg)
         response.raise_for_status()
         return Ticket.model_validate(response.json()["ticket"])
 
@@ -207,17 +211,19 @@ class ZendeskServices:
         return response.json()["tags"]  # type: ignore[no-any-return]
 
     def get_ticket_comments(self, ticket_id: int) -> list[TicketComment]:
-        """Return the first page of ticket comments for existing callers."""
-        response = self._make_request(
-            method="GET",
-            path=f"/api/v2/tickets/{ticket_id}/comments",
-        )
-        response.raise_for_status()
-        return [TicketComment.model_validate(comment) for comment in response.json()["comments"]]
+        """Return every comment on a ticket, following cursor pages to the end."""
+        comments: list[TicketComment] = []
+        after_cursor: str | None = None
+        while True:
+            page = self.get_ticket_comments_page(ticket_id, after_cursor=after_cursor)
+            comments.extend(page.comments)
+            if not page.has_more:
+                return comments
+            after_cursor = page.after_cursor
 
     def get_ticket_comments_page(self, ticket_id: int, *, after_cursor: str | None = None) -> TicketCommentPage:
         """Return one cursor page of comments; the caller follows after_cursor if has_more."""
-        if after_cursor is not None and not after_cursor:
+        if after_cursor is not None and not after_cursor.strip():
             message = "after_cursor must not be blank when provided."
             raise ValueError(message)
         params: dict[str, Any] = {"page[size]": 100}

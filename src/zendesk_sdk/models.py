@@ -27,7 +27,7 @@ class Ticket(_BaseModel):
     status: Literal["new", "open", "pending", "hold", "solved", "closed"]
     url: str
     created_at: datetime = Field(strict=False)
-    updated_at: datetime | None = Field(default=None, strict=False)
+    updated_at: datetime = Field(strict=False)
     tags: list[str]
 
 

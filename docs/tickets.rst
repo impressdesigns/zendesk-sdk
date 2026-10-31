@@ -61,6 +61,26 @@ Set a new status, leave a comment, or both:
 Comments default to public. Pass ``comment_is_public=False`` to leave an internal
 note instead.
 
+To avoid overwriting a change someone else made in the meantime, pass the ticket's
+``updated_at`` as ``updated_stamp``. If the ticket has changed since then, Zendesk
+rejects the update and the SDK raises
+:class:`~zendesk_sdk.exceptions.TicketUpdateConflictError`:
+
+.. code-block:: python
+
+   ticket = zendesk.get_ticket(12345)
+   try:
+       zendesk.update_ticket(
+           ticket.id,
+           comment="Cartons received.",
+           comment_is_public=False,
+           updated_stamp=ticket.updated_at,
+       )
+   except TicketUpdateConflictError:
+       ...  # Re-read the ticket and decide whether to retry.
+
+``updated_stamp`` must be timezone-aware.
+
 Tagging
 -------
 
@@ -75,9 +95,21 @@ Tagging a closed ticket raises :class:`~zendesk_sdk.exceptions.TicketClosedError
 Reading comments
 ----------------
 
+``get_ticket_comments`` returns every comment on the ticket, following Zendesk's
+cursor pages until the last one:
+
 .. code-block:: python
 
    comments = zendesk.get_ticket_comments(12345)
+
+To control paging yourself, request one page at a time and pass its
+``after_cursor`` back while ``has_more`` is true:
+
+.. code-block:: python
+
+   page = zendesk.get_ticket_comments_page(12345)
+   while page.has_more:
+       page = zendesk.get_ticket_comments_page(12345, after_cursor=page.after_cursor)
 
 Each :class:`~zendesk_sdk.models.TicketComment` carries its body, whether it was
 public, and any attachments.

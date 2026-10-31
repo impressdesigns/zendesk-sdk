@@ -1,12 +1,13 @@
 """Testing the client."""
 
 from datetime import UTC, datetime
+from http import HTTPStatus
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
-from zendesk_sdk import Ticket, ZendeskServices
+from zendesk_sdk import TicketUpdateConflictError, ZendeskServices
 
 CREATED_TICKET_ID = 987654321
 TICKET = {
@@ -302,11 +303,20 @@ def test_update_ticket_sends_private_note_with_safe_update(monkeypatch: pytest.M
     ]
 
 
-def test_ticket_construction_remains_compatible_without_updated_at() -> None:
-    """Existing callers can construct a ticket without a timestamp they do not use."""
-    ticket = Ticket.model_validate({key: value for key, value in TICKET.items() if key != "updated_at"})
+def test_update_ticket_raises_conflict_when_stamp_is_stale(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A safe update rejected by Zendesk surfaces as a conflict the caller can catch."""
+    client = _build_client()
+    monkeypatch.setattr(
+        client.client,
+        "post",
+        lambda *_args, **_kwargs: _response({"access_token": "access-token", "expires_in": 1800}),
+    )
+    conflict = _response({"error": "UpdateConflict"})
+    conflict.status_code = HTTPStatus.CONFLICT
+    monkeypatch.setattr(client.client, "request", lambda **_kwargs: conflict)
 
-    assert ticket.updated_at is None
+    with pytest.raises(TicketUpdateConflictError):
+        client.update_ticket(1, comment="note", updated_stamp=datetime(2026, 8, 28, 12, 30, tzinfo=UTC))
 
 
 def test_update_ticket_rejects_naive_stamp_before_request(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -381,21 +391,31 @@ def test_get_ticket_comments_page_rejects_incomplete_pagination(monkeypatch: pyt
         client.get_ticket_comments_page(1)
 
 
-def test_get_ticket_comments_keeps_existing_first_page_contract(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Existing callers still receive only the first page as a list."""
+def test_get_ticket_comments_follows_every_page(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Listing comments returns the whole thread, not just the first page."""
     client = _build_client()
     monkeypatch.setattr(
         client.client,
         "post",
         lambda *_args, **_kwargs: _response({"access_token": "access-token", "expires_in": 1800}),
     )
+    pages: list[dict[str, object]] = [
+        {
+            "comments": [{"id": 1, "public": True, "plain_body": "first", "attachments": []}],
+            "meta": {"has_more": True, "after_cursor": "next-cursor"},
+        },
+        {
+            "comments": [{"id": 2, "public": False, "plain_body": "second", "attachments": []}],
+            "meta": {"has_more": False, "after_cursor": None},
+        },
+    ]
     requests: list[dict[str, object]] = []
 
     def request(**kwargs: object) -> MagicMock:
         requests.append(kwargs)
-        return _response({"comments": [{"id": 1, "public": False, "plain_body": "first", "attachments": []}]})
+        return _response(pages[len(requests) - 1])
 
     monkeypatch.setattr(client.client, "request", request)
 
-    assert [comment.id for comment in client.get_ticket_comments(1)] == [1]
-    assert "params" not in requests[0]
+    assert [comment.id for comment in client.get_ticket_comments(1)] == [1, 2]
+    assert len(requests) == len(pages)
