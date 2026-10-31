@@ -391,8 +391,8 @@ def test_get_ticket_comments_page_rejects_incomplete_pagination(monkeypatch: pyt
         client.get_ticket_comments_page(1)
 
 
-def test_get_ticket_comments_follows_every_page(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Listing comments returns the whole thread, not just the first page."""
+def test_get_ticket_comments_fetches_pages_on_demand(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each page is requested only when the caller iterates past the previous one."""
     client = _build_client()
     monkeypatch.setattr(
         client.client,
@@ -416,6 +416,10 @@ def test_get_ticket_comments_follows_every_page(monkeypatch: pytest.MonkeyPatch)
         return _response(pages[len(requests) - 1])
 
     monkeypatch.setattr(client.client, "request", request)
+    comments = client.get_ticket_comments(1)
 
-    assert [comment.id for comment in client.get_ticket_comments(1)] == [1, 2]
+    assert requests == []
+    assert next(comments).id == 1
+    assert len(requests) == 1
+    assert [comment.id for comment in comments] == [2]
     assert len(requests) == len(pages)

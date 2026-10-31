@@ -2,12 +2,15 @@
 
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from niquests import Response, Session
 
 from .exceptions import TicketClosedError, TicketUpdateConflictError
 from .models import Ticket, TicketComment, TicketCommentPage
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 # Refresh a little early so a request issued at the boundary does not race the expiry.
 TOKEN_EXPIRY_MARGIN = timedelta(seconds=30)
@@ -210,15 +213,14 @@ class ZendeskServices:
         response.raise_for_status()
         return response.json()["tags"]  # type: ignore[no-any-return]
 
-    def get_ticket_comments(self, ticket_id: int) -> list[TicketComment]:
-        """Return every comment on a ticket, following cursor pages to the end."""
-        comments: list[TicketComment] = []
+    def get_ticket_comments(self, ticket_id: int) -> Iterator[TicketComment]:
+        """Yield a ticket's comments, fetching the next page only when the caller reaches it."""
         after_cursor: str | None = None
         while True:
             page = self.get_ticket_comments_page(ticket_id, after_cursor=after_cursor)
-            comments.extend(page.comments)
+            yield from page.comments
             if not page.has_more:
-                return comments
+                return
             after_cursor = page.after_cursor
 
     def get_ticket_comments_page(self, ticket_id: int, *, after_cursor: str | None = None) -> TicketCommentPage:
