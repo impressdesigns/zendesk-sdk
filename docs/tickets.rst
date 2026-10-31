@@ -95,12 +95,17 @@ Tagging a closed ticket raises :class:`~zendesk_sdk.exceptions.TicketClosedError
 Reading comments
 ----------------
 
-``get_ticket_comments`` returns every comment on the ticket, following Zendesk's
-cursor pages until the last one:
+``get_ticket_comments`` is a generator. It requests the next page of comments
+only when you iterate past the current one, so you decide how many to load:
 
 .. code-block:: python
 
-   comments = zendesk.get_ticket_comments(12345)
+   from itertools import islice
+
+   for comment in zendesk.get_ticket_comments(12345):
+       ...
+
+   first_ten = list(islice(zendesk.get_ticket_comments(12345), 10))
 
 To control paging yourself, request one page at a time and pass its
 ``after_cursor`` back while ``has_more`` is true:
