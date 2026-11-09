@@ -118,3 +118,29 @@ To control paging yourself, request one page at a time and pass its
 
 Each :class:`~zendesk_sdk.models.TicketComment` carries its body, whether it was
 public, and any attachments.
+
+Reading what changed
+--------------------
+
+The incremental export returns every ticket changed since a time, one page at a time.
+Start from a time once, then keep the ``after_cursor`` and pass it on the next call.
+``end_of_stream`` means the caller has caught up for now. The export is for admins
+only, and Zendesk allows about ten requests a minute.
+
+.. code-block:: python
+
+   page = zendesk.get_incremental_tickets_page(start_time=datetime(2026, 11, 9, tzinfo=UTC))
+   while not page.end_of_stream:
+       handle(page.tickets)
+       page = zendesk.get_incremental_tickets_page(cursor=page.after_cursor)
+   handle(page.tickets)
+   saved_cursor = page.after_cursor
+
+A ticket's comments come from ``get_ticket_comments`` and include each comment's
+``author_id`` and ``created_at``. Turn the user ids on tickets and comments into people
+with ``get_users``, at most 100 ids per call:
+
+.. code-block:: python
+
+   ids = [user_id for user_id in (ticket.requester_id, *ticket.collaborator_ids) if user_id is not None]
+   people = {user.id: user for user in zendesk.get_users(ids)}
