@@ -1,6 +1,8 @@
 Changelog
 =========
 
+- :release:`2.2.0 <9th November 2026>`
+- :feature:`73` ``download_attachment`` returns an attachment's bytes, and ``Attachment`` now carries its ``content_type`` and ``size``. Private attachments need the ``ticket_attachments:read`` scope.
 - :release:`2.1.0 <9th November 2026>`
 - :feature:`72` ``Ticket`` now carries ``subject``, ``description``, ``priority``, ``requester_id``, ``submitter_id``, ``assignee_id``, ``group_id`` and ``collaborator_ids``, and ``TicketComment`` carries ``author_id`` and ``created_at``. All are optional, so existing callers are unaffected.
 - :feature:`72` ``get_users`` loads up to 100 users by id in one request, returning the new ``User`` model.

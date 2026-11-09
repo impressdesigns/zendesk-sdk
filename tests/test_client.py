@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from zendesk_sdk import TicketUpdateConflictError, ZendeskServices
+from zendesk_sdk import Attachment, TicketUpdateConflictError, ZendeskServices
 
 CREATED_TICKET_ID = 987654321
 TICKET = {
@@ -553,3 +553,33 @@ def test_incremental_tickets_refuse_ambiguous_starts(kwargs: dict[str, Any]) -> 
     """Exactly one of a timezone-aware start time or a non-blank cursor."""
     with pytest.raises(ValueError, match=r"start_time|cursor|timezone"):
         _build_client().get_incremental_tickets_page(**kwargs)
+
+
+def test_download_attachment_reads_its_content_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An attachment downloads from its own content URL with the client's token."""
+    client = _build_client()
+    requests = _stub_api(client, monkeypatch, [])
+    attachment = Attachment.model_validate(
+        {
+            "id": 5,
+            "url": "https://example.zendesk.com/api/v2/attachments/5.json",
+            "file_name": "label.pdf",
+            "content_url": "https://example.zendesk.com/attachments/token/abc/?name=label.pdf",
+            "content_type": "application/pdf",
+            "size": 3,
+        }
+    )
+
+    def request(**kwargs: object) -> MagicMock:
+        requests.append(kwargs)
+        response = _response({})
+        response.content = b"pdf"
+        return response
+
+    monkeypatch.setattr(client.client, "request", request)
+
+    assert client.download_attachment(attachment) == b"pdf"
+    assert [(request["method"], request["url"], request["auth"]) for request in requests] == [
+        ("GET", attachment.content_url, "access-token"),
+    ]
+    assert (attachment.content_type, attachment.size) == ("application/pdf", 3)

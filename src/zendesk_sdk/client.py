@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from niquests import Response, Session
 
 from .exceptions import TicketClosedError, TicketUpdateConflictError
-from .models import IncrementalTicketPage, Ticket, TicketComment, TicketCommentPage, User
+from .models import Attachment, IncrementalTicketPage, Ticket, TicketComment, TicketCommentPage, User
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -269,6 +269,16 @@ class ZendeskServices:
         )
         response.raise_for_status()
         return [User.model_validate(user) for user in response.json()["users"]]
+
+    def download_attachment(self, attachment: Attachment) -> bytes:
+        """Return an attachment's bytes, read from its ``content_url``.
+
+        Zendesk answers with a redirect to a signed download, which is followed. The token needs
+        the ``ticket_attachments:read`` scope (or ``read``) when the account keeps attachments private.
+        """
+        response = self._make_request(method="GET", path=attachment.content_url)
+        response.raise_for_status()
+        return response.content or b""
 
     def get_incremental_tickets_page(
         self,
