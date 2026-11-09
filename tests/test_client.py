@@ -423,3 +423,133 @@ def test_get_ticket_comments_fetches_pages_on_demand(monkeypatch: pytest.MonkeyP
     assert len(requests) == 1
     assert [comment.id for comment in comments] == [2]
     assert len(requests) == len(pages)
+
+
+def _stub_api(
+    client: ZendeskServices,
+    monkeypatch: pytest.MonkeyPatch,
+    payloads: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Answer token requests and replay API payloads in order, recording each API request."""
+    requests: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        client.client,
+        "post",
+        lambda *_args, **_kwargs: _response({"access_token": "access-token", "expires_in": 1800}),
+    )
+
+    def request(**kwargs: object) -> MagicMock:
+        requests.append(kwargs)
+        return _response(payloads[len(requests) - 1])
+
+    monkeypatch.setattr(client.client, "request", request)
+    return requests
+
+
+def test_ticket_carries_the_fields_a_mirror_needs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Subject, description, people, group and priority come through when Zendesk sends them."""
+    client = _build_client()
+    ticket = TICKET | {
+        "subject": "Printer jammed",
+        "description": "Tray 2 again",
+        "priority": "high",
+        "requester_id": 11,
+        "submitter_id": 11,
+        "assignee_id": 22,
+        "group_id": 33,
+        "collaborator_ids": [44],
+    }
+    _stub_api(client, monkeypatch, [{"ticket": ticket}])
+
+    loaded = client.get_ticket(1)
+
+    assert (loaded.subject, loaded.description, loaded.priority) == ("Printer jammed", "Tray 2 again", "high")
+    assert (loaded.requester_id, loaded.assignee_id, loaded.group_id) == (11, 22, 33)
+    assert loaded.collaborator_ids == [44]
+
+
+def test_comment_carries_its_author_and_time(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A comment says who wrote it and when, so a copy can keep both."""
+    client = _build_client()
+    comment = {
+        "id": 5,
+        "public": True,
+        "plain_body": "Thanks",
+        "attachments": [],
+        "author_id": 11,
+        "created_at": "2026-11-09T08:00:00Z",
+    }
+    _stub_api(client, monkeypatch, [{"comments": [comment], "meta": {"has_more": False, "after_cursor": None}}])
+
+    [loaded] = client.get_ticket_comments_page(1).comments
+
+    assert (loaded.author_id, loaded.created_at) == (11, datetime(2026, 11, 9, 8, tzinfo=UTC))
+
+
+def test_get_users_loads_many_in_one_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Users are fetched together by id."""
+    client = _build_client()
+    users = [
+        {"id": 11, "name": "Requester", "email": "requester@example.com", "role": "end-user"},
+        {"id": 22, "name": "Agent", "email": None, "role": "agent"},
+    ]
+    requests = _stub_api(client, monkeypatch, [{"users": users}])
+
+    loaded = client.get_users([11, 22])
+
+    assert [(user.id, user.email, user.role) for user in loaded] == [
+        (11, "requester@example.com", "end-user"),
+        (22, None, "agent"),
+    ]
+    assert [request["params"] for request in requests] == [{"ids": "11,22"}]
+
+
+def test_get_users_refuses_more_than_zendesk_accepts() -> None:
+    """Zendesk's show_many takes 100 ids; the caller splits larger lists."""
+    with pytest.raises(ValueError, match="100"):
+        _build_client().get_users(list(range(101)))
+
+
+def test_get_users_with_no_ids_sends_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty list needs no request."""
+    client = _build_client()
+    requests = _stub_api(client, monkeypatch, [])
+
+    assert client.get_users([]) == []
+    assert requests == []
+
+
+def test_incremental_tickets_start_at_a_time_then_follow_the_cursor(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The first page starts at a time; later pages follow the previous cursor until the stream ends."""
+    client = _build_client()
+    pages: list[dict[str, object]] = [
+        {"tickets": [TICKET], "after_cursor": "next-cursor", "end_of_stream": False},
+        {"tickets": [], "after_cursor": "caught-up", "end_of_stream": True},
+    ]
+    requests = _stub_api(client, monkeypatch, pages)
+
+    first = client.get_incremental_tickets_page(start_time=datetime(2026, 11, 9, tzinfo=UTC))
+    second = client.get_incremental_tickets_page(cursor=first.after_cursor)
+
+    assert [ticket.id for ticket in first.tickets] == [1]
+    assert (first.after_cursor, first.end_of_stream) == ("next-cursor", False)
+    assert (second.after_cursor, second.end_of_stream) == ("caught-up", True)
+    assert [request["params"] for request in requests] == [
+        {"exclude_deleted": "true", "start_time": 1794182400},
+        {"exclude_deleted": "true", "cursor": "next-cursor"},
+    ]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {},
+        {"start_time": datetime(2026, 11, 9, tzinfo=UTC), "cursor": "both"},
+        {"cursor": " "},
+        {"start_time": datetime(2026, 11, 9)},  # noqa: DTZ001 - the naive time is the point
+    ],
+)
+def test_incremental_tickets_refuse_ambiguous_starts(kwargs: dict[str, Any]) -> None:
+    """Exactly one of a timezone-aware start time or a non-blank cursor."""
+    with pytest.raises(ValueError, match=r"start_time|cursor|timezone"):
+        _build_client().get_incremental_tickets_page(**kwargs)

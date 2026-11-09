@@ -7,10 +7,13 @@ from typing import TYPE_CHECKING, Any, Literal
 from niquests import Response, Session
 
 from .exceptions import TicketClosedError, TicketUpdateConflictError
-from .models import Ticket, TicketComment, TicketCommentPage
+from .models import IncrementalTicketPage, Ticket, TicketComment, TicketCommentPage, User
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+#: Zendesk's ``show_many`` endpoints accept at most this many ids per request.
+SHOW_MANY_LIMIT = 100
 
 # Refresh a little early so a request issued at the boundary does not race the expiry.
 TOKEN_EXPIRY_MARGIN = timedelta(seconds=30)
@@ -250,4 +253,60 @@ class ZendeskServices:
             comments=[TicketComment.model_validate(comment) for comment in page["comments"]],
             has_more=metadata["has_more"],
             after_cursor=next_cursor if isinstance(next_cursor, str) else None,
+        )
+
+    def get_users(self, user_ids: list[int]) -> list[User]:
+        """Return the users with these ids, in one request; unknown ids are left out."""
+        if not user_ids:
+            return []
+        if len(user_ids) > SHOW_MANY_LIMIT:
+            message = f"get_users takes at most {SHOW_MANY_LIMIT} ids per call."
+            raise ValueError(message)
+        response = self._make_request(
+            method="GET",
+            path="/api/v2/users/show_many",
+            params={"ids": ",".join(str(user_id) for user_id in user_ids)},
+        )
+        response.raise_for_status()
+        return [User.model_validate(user) for user in response.json()["users"]]
+
+    def get_incremental_tickets_page(
+        self,
+        *,
+        start_time: datetime | None = None,
+        cursor: str | None = None,
+    ) -> IncrementalTicketPage:
+        """Return one page of tickets changed since ``start_time``, or since a previous page's cursor.
+
+        Pass ``start_time`` on the first call only, then the ``after_cursor`` of the page before.
+        ``end_of_stream`` says the caller has caught up; keep the cursor and ask again later.
+        Zendesk allows this export to admins only, about ten requests a minute.
+        """
+        if (start_time is None) == (cursor is None):
+            message = "Pass exactly one of start_time or cursor."
+            raise ValueError(message)
+        # Deleted tickets come back with a status outside Ticket's; callers mirror live tickets.
+        params: dict[str, Any] = {"exclude_deleted": "true"}
+        if cursor is not None:
+            if not cursor.strip():
+                message = "cursor must not be blank when provided."
+                raise ValueError(message)
+            params["cursor"] = cursor
+        if start_time is not None:
+            if start_time.tzinfo is None or start_time.utcoffset() is None:
+                message = "start_time must include a timezone."
+                raise ValueError(message)
+            params["start_time"] = int(start_time.timestamp())
+        response = self._make_request(
+            method="GET",
+            path="/api/v2/incremental/tickets/cursor",
+            params=params,
+        )
+        response.raise_for_status()
+        page = response.json()
+        next_cursor = page.get("after_cursor")
+        return IncrementalTicketPage(
+            tickets=[Ticket.model_validate(ticket) for ticket in page["tickets"]],
+            after_cursor=next_cursor if isinstance(next_cursor, str) and next_cursor else None,
+            end_of_stream=bool(page["end_of_stream"]),
         )
