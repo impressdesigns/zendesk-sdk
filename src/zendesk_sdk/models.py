@@ -18,6 +18,8 @@ class Attachment(_BaseModel):
     url: str
     file_name: str
     content_url: str
+    content_type: str | None = None
+    size: int | None = None
 
 
 class Ticket(_BaseModel):

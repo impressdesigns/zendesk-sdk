@@ -144,3 +144,12 @@ with ``get_users``, at most 100 ids per call:
 
    ids = [user_id for user_id in (ticket.requester_id, *ticket.collaborator_ids) if user_id is not None]
    people = {user.id: user for user in zendesk.get_users(ids)}
+
+A comment's ``attachments`` list each file's name, ``content_type`` and ``size``.
+``download_attachment`` returns the bytes. When the account keeps attachments private, the token
+needs the ``ticket_attachments:read`` scope:
+
+.. code-block:: python
+
+   for attachment in comment.attachments:
+       data = zendesk.download_attachment(attachment)
