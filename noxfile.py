@@ -21,7 +21,6 @@ CLEANABLE_TARGETS = [
     # Built documentation
     "./site",
     # Test reporting artifacts
-    "./junit.xml",
     "./coverage.xml",
 ]
 
@@ -29,7 +28,7 @@ CLEANABLE_TARGETS = [
 @nox.session
 def tests(session: nox.Session) -> None:
     """Run tests."""
-    session.run("python", "-m", "coverage", "run", "-m", "pytest", "-v", "--junitxml=junit.xml")
+    session.run("python", "-m", "coverage", "run", "-m", "pytest", "-v")
 
 
 @nox.session
