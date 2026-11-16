@@ -12,6 +12,7 @@ permissions: {}
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     permissions:
       contents: read
@@ -26,6 +27,8 @@ jobs:
         uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
+          # The newest uv whose checksum this setup-uv release bundles; Dependabot moves it with the action.
+          version: "latest-known"
 
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -33,7 +36,7 @@ jobs:
           python-version-file: "pyproject.toml"
 
       - name: Sync dependencies
-        run: uv sync --group docs
+        run: uv sync --locked --group docs
 
       - name: Build docs
         run: uv run sphinx-build --builder dirhtml --nitpicky docs site
@@ -56,6 +59,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     needs: build
     steps:
