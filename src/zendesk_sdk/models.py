@@ -26,7 +26,8 @@ class Ticket(_BaseModel):
     """Ticket model."""
 
     id: int
-    status: Literal["new", "open", "pending", "hold", "solved", "closed"]
+    #: ``deleted`` only comes from the incremental export asked to include deleted tickets.
+    status: Literal["new", "open", "pending", "hold", "solved", "closed", "deleted"]
     url: str
     created_at: datetime = Field(strict=False)
     updated_at: datetime = Field(strict=False)

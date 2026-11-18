@@ -136,6 +136,9 @@ only, and Zendesk allows about ten requests a minute.
    handle(page.tickets)
    saved_cursor = page.after_cursor
 
+Deleted tickets, spam among them, are left out unless ``include_deleted=True`` is passed on
+every call of the walk; they then come back with the status ``deleted``.
+
 A ticket's comments come from ``get_ticket_comments`` and include each comment's
 ``author_id`` and ``created_at``. Turn the user ids on tickets and comments into people
 with ``get_users``, at most 100 ids per call:

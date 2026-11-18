@@ -1,6 +1,8 @@
 Changelog
 =========
 
+- :release:`2.3.0 <18th November 2026>`
+- :feature:`PRNUM` ``get_incremental_tickets_page`` takes ``include_deleted`` to keep deleted tickets (spam among them) in the export, and ``Ticket.status`` can now be ``deleted``.
 - :release:`2.2.0 <9th November 2026>`
 - :feature:`73` ``download_attachment`` returns an attachment's bytes, and ``Attachment`` now carries its ``content_type`` and ``size``. Private attachments need the ``ticket_attachments:read`` scope.
 - :release:`2.1.0 <9th November 2026>`

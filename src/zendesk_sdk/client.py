@@ -285,18 +285,21 @@ class ZendeskServices:
         *,
         start_time: datetime | None = None,
         cursor: str | None = None,
+        include_deleted: bool = False,
     ) -> IncrementalTicketPage:
         """Return one page of tickets changed since ``start_time``, or since a previous page's cursor.
 
         Pass ``start_time`` on the first call only, then the ``after_cursor`` of the page before.
         ``end_of_stream`` says the caller has caught up; keep the cursor and ask again later.
         Zendesk allows this export to admins only, about ten requests a minute.
+
+        ``include_deleted`` keeps deleted tickets (spam among them) in the export, with the status
+        ``deleted``; pass the same value on every page of one walk.
         """
         if (start_time is None) == (cursor is None):
             message = "Pass exactly one of start_time or cursor."
             raise ValueError(message)
-        # Deleted tickets come back with a status outside Ticket's; callers mirror live tickets.
-        params: dict[str, Any] = {"exclude_deleted": "true"}
+        params: dict[str, Any] = {"exclude_deleted": "false" if include_deleted else "true"}
         if cursor is not None:
             if not cursor.strip():
                 message = "cursor must not be blank when provided."
