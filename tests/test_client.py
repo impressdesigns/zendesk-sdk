@@ -540,6 +540,20 @@ def test_incremental_tickets_start_at_a_time_then_follow_the_cursor(monkeypatch:
     ]
 
 
+def test_incremental_tickets_can_include_deleted_ones(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Asked to, the export keeps deleted tickets, and their ``deleted`` status reads."""
+    client = _build_client()
+    deleted = {**TICKET, "id": 2, "status": "deleted"}
+    requests = _stub_api(
+        client, monkeypatch, [{"tickets": [TICKET, deleted], "after_cursor": None, "end_of_stream": True}]
+    )
+
+    page = client.get_incremental_tickets_page(start_time=datetime(2026, 11, 9, tzinfo=UTC), include_deleted=True)
+
+    assert [(ticket.id, ticket.status) for ticket in page.tickets] == [(1, "open"), (2, "deleted")]
+    assert requests[0]["params"] == {"exclude_deleted": "false", "start_time": 1794182400}
+
+
 @pytest.mark.parametrize(
     "kwargs",
     [
