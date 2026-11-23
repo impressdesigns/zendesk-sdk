@@ -37,6 +37,7 @@ requester fields are required so Zendesk can create first-time requesters.
        "Return details\n\nPlease let us know how you would like to proceed.",
        requester_email="customer@example.com",
        requester_name="Customer Name",
+       email_ccs=["copy@example.com"],
        tags=["carrier-return", "rts-1234"],
        group_id=42,
        priority="high",
@@ -48,6 +49,11 @@ Everything after the requester is optional. Pass an ``idempotency_key`` to make 
 retried request return the original ticket instead of filing a duplicate, and
 ``comment_is_public=False`` to open the ticket with an internal note rather than a
 comment the requester is notified about.
+
+``email_ccs`` adds people copied on the public ticket. Addresses are trimmed and
+deduplicated without copying the requester again, and a ticket supports at most
+48 email CCs. Leaving it unset preserves the requester-only request. Actual email
+delivery follows the account's Zendesk trigger settings.
 
 Updating
 --------

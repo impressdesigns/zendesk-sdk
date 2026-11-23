@@ -120,6 +120,7 @@ def test_create_ticket_sends_all_supported_properties(monkeypatch: pytest.Monkey
         "Return details\n \nPlease advise.",
         requester_email="customer@example.com",
         requester_name="Customer Name",
+        email_ccs=[" copy@example.com ", "COPY@example.com", "CUSTOMER@example.com", "other@example.com"],
         tags=["iditoolscarrierreturn", "rts-52"],
         group_id=42,
         priority="high",
@@ -137,6 +138,10 @@ def test_create_ticket_sends_all_supported_properties(monkeypatch: pytest.Monkey
                 "ticket": {
                     "comment": {"body": "Return details\n \nPlease advise.", "public": True},
                     "external_id": "carrier-return:52",
+                    "email_ccs": [
+                        {"user_email": "copy@example.com", "action": "put"},
+                        {"user_email": "other@example.com", "action": "put"},
+                    ],
                     "group_id": 42,
                     "priority": "high",
                     "requester": {"email": "customer@example.com", "name": "Customer Name"},
@@ -188,6 +193,25 @@ def test_create_ticket_omits_optional_properties(monkeypatch: pytest.MonkeyPatch
             },
         },
     ]
+
+
+@pytest.mark.parametrize("emails", [[" "], [f"copy{index}@example.com" for index in range(49)]])
+def test_create_ticket_refuses_blank_or_excessive_ccs_before_sending(emails: list[str]) -> None:
+    """A rejected CC list makes no OAuth or ticket request."""
+    client = _build_client()
+    client.client = MagicMock()
+
+    with pytest.raises(ValueError, match=r"email CCs|email_ccs"):
+        client.create_ticket(
+            "Subject",
+            "Body",
+            requester_email="customer@example.com",
+            requester_name="Customer Name",
+            email_ccs=emails,
+        )
+
+    client.client.request.assert_not_called()
+    client.client.post.assert_not_called()
 
 
 def test_create_ticket_can_open_with_an_internal_note(monkeypatch: pytest.MonkeyPatch) -> None:

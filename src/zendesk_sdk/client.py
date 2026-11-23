@@ -15,6 +15,9 @@ if TYPE_CHECKING:
 #: Zendesk's ``show_many`` endpoints accept at most this many ids per request.
 SHOW_MANY_LIMIT = 100
 
+#: Zendesk's maximum number of email CCs on one ticket.
+EMAIL_CC_LIMIT = 48
+
 # Refresh a little early so a request issued at the boundary does not race the expiry.
 TOKEN_EXPIRY_MARGIN = timedelta(seconds=30)
 
@@ -125,6 +128,7 @@ class ZendeskServices:
         *,
         requester_email: str,
         requester_name: str,
+        email_ccs: list[str] | None = None,
         tags: list[str] | None = None,
         group_id: int | None = None,
         priority: Literal["urgent", "high", "normal", "low"] = "normal",
@@ -154,6 +158,10 @@ class ZendeskServices:
             "requester": requester,
             "subject": subject,
         }
+        if email_ccs:
+            recipients = self._ticket_email_ccs(requester_email, email_ccs)
+            if recipients:
+                ticket["email_ccs"] = [{"user_email": email, "action": "put"} for email in recipients]
         if tags is not None:
             ticket["tags"] = tags
         if group_id is not None:
@@ -170,6 +178,24 @@ class ZendeskServices:
         )
         response.raise_for_status()
         return Ticket.model_validate(response.json()["ticket"])
+
+    @staticmethod
+    def _ticket_email_ccs(requester_email: str, emails: list[str]) -> list[str]:
+        """Keep distinct CC addresses in order, without copying the requester twice."""
+        seen = {requester_email.strip().casefold()}
+        recipients = []
+        for email in emails:
+            address = email.strip()
+            if not address:
+                message = "email_ccs must contain non-blank email addresses."
+                raise ValueError(message)
+            if address.casefold() not in seen:
+                seen.add(address.casefold())
+                recipients.append(address)
+        if len(recipients) > EMAIL_CC_LIMIT:
+            message = f"A ticket can have at most {EMAIL_CC_LIMIT} email CCs."
+            raise ValueError(message)
+        return recipients
 
     def update_ticket(
         self,
