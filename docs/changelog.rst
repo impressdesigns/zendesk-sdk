@@ -1,6 +1,7 @@
 Changelog
 =========
 
+- :feature:`80` ``create_ticket`` accepts optional ``email_ccs`` for up to 48 distinct copied recipients, excluding the requester. Requester-only calls are unchanged.
 - :release:`2.3.0 <18th November 2026>`
 - :feature:`77` ``get_incremental_tickets_page`` takes ``include_deleted`` to keep deleted tickets (spam among them) in the export, and ``Ticket.status`` can now be ``deleted``.
 - :release:`2.2.0 <9th November 2026>`
