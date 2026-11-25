@@ -37,6 +37,7 @@ requester fields are required so Zendesk can create first-time requesters.
        "Return details\n\nPlease let us know how you would like to proceed.",
        requester_email="customer@example.com",
        requester_name="Customer Name",
+       email_ccs=["colleague@example.com"],
        tags=["carrier-return", "rts-1234"],
        group_id=42,
        priority="high",
@@ -48,6 +49,12 @@ Everything after the requester is optional. Pass an ``idempotency_key`` to make 
 retried request return the original ticket instead of filing a duplicate, and
 ``comment_is_public=False`` to open the ticket with an internal note rather than a
 comment the requester is notified about.
+
+``email_ccs`` lists the addresses to copy on the ticket alongside the requester. Zendesk
+creates a user for an address it has not seen, allows 48 on a ticket, and ignores them
+all when the account has CCs and followers turned off. Whether anyone is emailed is up
+to the account's triggers. The addresses are sent as given: the SDK refuses a blank one
+or a list longer than 48, and leaves removing duplicates to the caller.
 
 Updating
 --------
