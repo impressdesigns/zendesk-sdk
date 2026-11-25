@@ -15,6 +15,9 @@ if TYPE_CHECKING:
 #: Zendesk's ``show_many`` endpoints accept at most this many ids per request.
 SHOW_MANY_LIMIT = 100
 
+#: Zendesk answers 400 to a ticket request that carries more email CCs than this.
+EMAIL_CCS_LIMIT = 48
+
 # Refresh a little early so a request issued at the boundary does not race the expiry.
 TOKEN_EXPIRY_MARGIN = timedelta(seconds=30)
 
@@ -125,6 +128,7 @@ class ZendeskServices:
         *,
         requester_email: str,
         requester_name: str,
+        email_ccs: list[str] | None = None,
         tags: list[str] | None = None,
         group_id: int | None = None,
         priority: Literal["urgent", "high", "normal", "low"] = "normal",
@@ -132,7 +136,11 @@ class ZendeskServices:
         idempotency_key: str | None = None,
         comment_is_public: bool = True,
     ) -> Ticket:
-        """Create a ticket on behalf of a requester."""
+        """Create a ticket on behalf of a requester.
+
+        ``email_ccs`` are the addresses copied on the ticket besides the requester. They are sent
+        as given, so the caller decides what counts as a duplicate.
+        """
         if not requester_email.strip():
             message = "requester_email must not be blank."
             raise ValueError(message)
@@ -141,6 +149,13 @@ class ZendeskServices:
             raise ValueError(message)
         if idempotency_key is not None and not idempotency_key.strip():
             message = "idempotency_key must not be blank when provided."
+            raise ValueError(message)
+        copied = email_ccs or []
+        if len(copied) > EMAIL_CCS_LIMIT:
+            message = f"create_ticket takes at most {EMAIL_CCS_LIMIT} email_ccs."
+            raise ValueError(message)
+        if not all(email.strip() for email in copied):
+            message = "email_ccs must not contain a blank address."
             raise ValueError(message)
 
         requester = {"email": requester_email, "name": requester_name}
@@ -154,6 +169,9 @@ class ZendeskServices:
             "requester": requester,
             "subject": subject,
         }
+        if copied:
+            # Zendesk adds an entry unless its ``action`` says otherwise.
+            ticket["email_ccs"] = [{"user_email": email} for email in copied]
         if tags is not None:
             ticket["tags"] = tags
         if group_id is not None:

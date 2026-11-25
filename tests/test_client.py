@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from zendesk_sdk import Attachment, TicketUpdateConflictError, ZendeskServices
+from zendesk_sdk.client import EMAIL_CCS_LIMIT
 
 CREATED_TICKET_ID = 987654321
 TICKET = {
@@ -97,7 +98,7 @@ def test_expired_access_token_is_requested_again(monkeypatch: pytest.MonkeyPatch
 
 
 def test_create_ticket_sends_all_supported_properties(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ticket creation sends requester, tags, routing, identity, and idempotency."""
+    """Ticket creation sends requester, copied addresses, tags, routing, identity, and idempotency."""
     client = _build_client()
     ticket_requests: list[dict[str, object]] = []
 
@@ -120,6 +121,7 @@ def test_create_ticket_sends_all_supported_properties(monkeypatch: pytest.Monkey
         "Return details\n \nPlease advise.",
         requester_email="customer@example.com",
         requester_name="Customer Name",
+        email_ccs=["buyer@example.com", "receiving@example.com"],
         tags=["iditoolscarrierreturn", "rts-52"],
         group_id=42,
         priority="high",
@@ -136,6 +138,7 @@ def test_create_ticket_sends_all_supported_properties(monkeypatch: pytest.Monkey
             "json": {
                 "ticket": {
                     "comment": {"body": "Return details\n \nPlease advise.", "public": True},
+                    "email_ccs": [{"user_email": "buyer@example.com"}, {"user_email": "receiving@example.com"}],
                     "external_id": "carrier-return:52",
                     "group_id": 42,
                     "priority": "high",
@@ -245,9 +248,25 @@ def test_create_ticket_can_open_with_an_internal_note(monkeypatch: pytest.Monkey
             },
             "idempotency_key",
         ),
+        (
+            {
+                "requester_email": "customer@example.com",
+                "requester_name": "Customer Name",
+                "email_ccs": ["buyer@example.com", " "],
+            },
+            "blank address",
+        ),
+        (
+            {
+                "requester_email": "customer@example.com",
+                "requester_name": "Customer Name",
+                "email_ccs": [f"buyer{number}@example.com" for number in range(EMAIL_CCS_LIMIT + 1)],
+            },
+            "at most 48",
+        ),
     ],
 )
-def test_create_ticket_rejects_blank_values(
+def test_create_ticket_rejects_invalid_values(
     monkeypatch: pytest.MonkeyPatch,
     keyword_arguments: dict[str, Any],
     expected_message: str,
