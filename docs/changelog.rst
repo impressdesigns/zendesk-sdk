@@ -1,6 +1,7 @@
 Changelog
 =========
 
+- :feature:`81` ``create_ticket`` takes ``email_ccs``, the addresses to copy on the ticket alongside the requester. A blank address or more than 48 of them is refused before any request.
 - :release:`2.3.0 <18th November 2026>`
 - :feature:`77` ``get_incremental_tickets_page`` takes ``include_deleted`` to keep deleted tickets (spam among them) in the export, and ``Ticket.status`` can now be ``deleted``.
 - :release:`2.2.0 <9th November 2026>`
