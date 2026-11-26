@@ -85,12 +85,17 @@ class TicketAudit(_BaseModel):
 
     ``author_id`` is whoever made the update. An update a trigger or an automation made names
     no user Zendesk can load, so look the id up before treating it as a person.
+
+    ``metadata`` is Zendesk's own record of where the update came from, passed through as sent.
+    Zendesk documents its ``system`` and ``custom`` objects and not their keys, so read a key
+    as optional.
     """
 
     id: int
     ticket_id: int
     created_at: datetime = Field(strict=False)
     author_id: int | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
     events: list[TicketAuditEvent]
 
 

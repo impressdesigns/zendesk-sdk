@@ -1,7 +1,7 @@
 Changelog
 =========
 
-- :feature:`82` ``get_ticket_audits`` yields a ticket's audits (``TicketAudit``): who made each update, when, and the events it made, a field's old and new value among them. ``get_ticket_audits_page`` returns one page for callers that page themselves. Audits need the global ``read`` scope.
+- :feature:`82` ``get_ticket_audits`` yields a ticket's audits (``TicketAudit``): who made each update, when, and the events it made, a field's old and new value among them, and Zendesk's ``metadata`` for the update as sent. ``get_ticket_audits_page`` returns one page for callers that page themselves. Audits need the global ``read`` scope.
 - :feature:`82` ``TicketComment`` carries ``html_body``, the comment as Zendesk formatted it.
 - :release:`2.4.0 <25th November 2026>`
 - :feature:`81` ``create_ticket`` takes ``email_ccs``, the addresses to copy on the ticket alongside the requester. A blank address or more than 48 of them is refused before any request.

@@ -145,7 +145,9 @@ A ``Create`` event set a field as the ticket was opened and a ``Change`` event m
 ``previous_value`` to ``value``. Values are normally strings, ids included; tags are a list.
 Zendesk has many more event types, and each :class:`~zendesk_sdk.models.TicketAuditEvent`
 keeps its ``type`` so a caller can pick the ones it reads. An update made by a trigger or an
-automation has an ``author_id`` that ``get_users`` does not return.
+automation has an ``author_id`` that ``get_users`` does not return. ``metadata`` is Zendesk's
+record of where the update came from, passed through as sent; Zendesk does not document its
+keys, so read each one as optional.
 
 Audits need the global ``read`` scope. Zendesk refuses them to a token that holds only
 ``tickets:read``.

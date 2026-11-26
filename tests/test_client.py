@@ -635,6 +635,7 @@ def test_get_ticket_audits_fetches_pages_on_demand(monkeypatch: pytest.MonkeyPat
                     "created_at": "2026-05-01T14:00:00Z",
                     "author_id": 77,
                     "via": {"channel": "email"},
+                    "metadata": {"system": {"client": "mail"}, "custom": {}},
                     "events": [
                         {"id": 100, "type": "Comment", "public": True, "body": "It broke."},
                         {"id": 101, "type": "Create", "field_name": "status", "value": "new"},
@@ -684,7 +685,10 @@ def test_get_ticket_audits_fetches_pages_on_demand(monkeypatch: pytest.MonkeyPat
         ("Create", "tags", ["dock"]),
     ]
 
+    assert first.metadata == {"system": {"client": "mail"}, "custom": {}}
+
     (second,) = audits
+    assert second.metadata == {}
     change = second.events[0]
     assert (change.field_name, change.previous_value, change.value) == ("status", "new", "closed")
     assert [request["params"] for request in requests] == [
