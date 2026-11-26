@@ -7,7 +7,16 @@ from typing import TYPE_CHECKING, Any, Literal
 from niquests import Response, Session
 
 from .exceptions import TicketClosedError, TicketUpdateConflictError
-from .models import Attachment, IncrementalTicketPage, Ticket, TicketComment, TicketCommentPage, User
+from .models import (
+    Attachment,
+    IncrementalTicketPage,
+    Ticket,
+    TicketAudit,
+    TicketAuditPage,
+    TicketComment,
+    TicketCommentPage,
+    User,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -269,6 +278,58 @@ class ZendeskServices:
             raise ValueError(message)
         return TicketCommentPage(
             comments=[TicketComment.model_validate(comment) for comment in page["comments"]],
+            has_more=metadata["has_more"],
+            after_cursor=next_cursor if isinstance(next_cursor, str) else None,
+        )
+
+    def get_ticket_audits(self, ticket_id: int) -> Iterator[TicketAudit]:
+        """Yield a ticket's audits, fetching the next page only when the caller reaches it.
+
+        An audit is one update to the ticket: its author, its time and the events it made, a
+        field's old and new value among them. Zendesk documents no order for them, so sort by
+        ``created_at`` to replay a ticket's history. The token needs the global ``read`` scope;
+        Zendesk refuses ``tickets:read`` for audits.
+        """
+        after_cursor: str | None = None
+        while True:
+            page = self.get_ticket_audits_page(ticket_id, after_cursor=after_cursor)
+            yield from page.audits
+            if not page.has_more:
+                return
+            after_cursor = page.after_cursor
+
+    def get_ticket_audits_page(self, ticket_id: int, *, after_cursor: str | None = None) -> TicketAuditPage:
+        """Return one cursor page of audits; the caller follows after_cursor if has_more.
+
+        Zendesk does not paginate the audits of an archived ticket: it answers them all with no
+        pagination metadata, which is read as a last page.
+        """
+        if after_cursor is not None and not after_cursor.strip():
+            message = "after_cursor must not be blank when provided."
+            raise ValueError(message)
+        params: dict[str, Any] = {"page[size]": 100}
+        if after_cursor is not None:
+            params["page[after]"] = after_cursor
+        response = self._make_request(
+            method="GET",
+            path=f"/api/v2/tickets/{ticket_id}/audits",
+            params=params,
+        )
+        response.raise_for_status()
+        page = response.json()
+        audits = [TicketAudit.model_validate(audit) for audit in page["audits"]]
+        metadata = page.get("meta")
+        if metadata is None:
+            return TicketAuditPage(audits=audits, has_more=False, after_cursor=None)
+        if not isinstance(metadata, dict) or not isinstance(metadata.get("has_more"), bool):
+            message = "Zendesk audit pagination metadata is malformed."
+            raise TypeError(message)
+        next_cursor = metadata.get("after_cursor")
+        if metadata["has_more"] and (not isinstance(next_cursor, str) or not next_cursor):
+            message = "Zendesk audit pagination cursor is missing."
+            raise ValueError(message)
+        return TicketAuditPage(
+            audits=audits,
             has_more=metadata["has_more"],
             after_cursor=next_cursor if isinstance(next_cursor, str) else None,
         )

@@ -616,3 +616,166 @@ def test_download_attachment_reads_its_content_url(monkeypatch: pytest.MonkeyPat
         ("GET", attachment.content_url, "access-token"),
     ]
     assert (attachment.content_type, attachment.size) == ("application/pdf", 3)
+
+
+def test_get_ticket_audits_fetches_pages_on_demand(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Audits carry who, when and what changed, and each page is requested only when reached."""
+    client = _build_client()
+    monkeypatch.setattr(
+        client.client,
+        "post",
+        lambda *_args, **_kwargs: _response({"access_token": "access-token", "expires_in": 1800}),
+    )
+    pages: list[dict[str, object]] = [
+        {
+            "audits": [
+                {
+                    "id": 10,
+                    "ticket_id": 1,
+                    "created_at": "2026-05-01T14:00:00Z",
+                    "author_id": 77,
+                    "via": {"channel": "email"},
+                    "metadata": {"system": {"client": "mail"}, "custom": {}},
+                    "events": [
+                        {"id": 100, "type": "Comment", "public": True, "body": "It broke."},
+                        {"id": 101, "type": "Create", "field_name": "status", "value": "new"},
+                        {"id": 102, "type": "Create", "field_name": "tags", "value": ["dock"]},
+                    ],
+                },
+            ],
+            "meta": {"has_more": True, "after_cursor": "next-cursor"},
+        },
+        {
+            "audits": [
+                {
+                    "id": 11,
+                    "ticket_id": 1,
+                    "created_at": "2026-05-02T09:30:00Z",
+                    "author_id": -1,
+                    "events": [
+                        {
+                            "id": 110,
+                            "type": "Change",
+                            "field_name": "status",
+                            "value": "closed",
+                            "previous_value": "new",
+                        },
+                    ],
+                },
+            ],
+            "meta": {"has_more": False, "after_cursor": None},
+        },
+    ]
+    requests: list[dict[str, object]] = []
+
+    def request(**kwargs: object) -> MagicMock:
+        requests.append(kwargs)
+        return _response(pages[len(requests) - 1])
+
+    monkeypatch.setattr(client.client, "request", request)
+    audits = client.get_ticket_audits(1)
+
+    first = next(audits)
+    assert len(requests) == 1
+    assert first.author_id == 77  # noqa: PLR2004 - the fixture's author
+    assert first.created_at == datetime(2026, 5, 1, 14, 0, tzinfo=UTC)
+    assert [(event.type, event.field_name, event.value) for event in first.events] == [
+        ("Comment", None, None),
+        ("Create", "status", "new"),
+        ("Create", "tags", ["dock"]),
+    ]
+
+    assert first.metadata == {"system": {"client": "mail"}, "custom": {}}
+
+    (second,) = audits
+    assert second.metadata == {}
+    change = second.events[0]
+    assert (change.field_name, change.previous_value, change.value) == ("status", "new", "closed")
+    assert [request["params"] for request in requests] == [
+        {"page[size]": 100},
+        {"page[size]": 100, "page[after]": "next-cursor"},
+    ]
+    assert requests[0]["url"] == "/api/v2/tickets/1/audits"
+
+
+def test_get_ticket_audits_page_reads_an_archived_tickets_audits_as_the_last_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Zendesk does not paginate an archived ticket's audits, so no metadata means no more pages."""
+    client = _build_client()
+    monkeypatch.setattr(
+        client.client,
+        "post",
+        lambda *_args, **_kwargs: _response({"access_token": "access-token", "expires_in": 1800}),
+    )
+    monkeypatch.setattr(
+        client.client,
+        "request",
+        lambda **_kwargs: _response(
+            {
+                "audits": [{"id": 10, "ticket_id": 1, "created_at": "2026-05-01T14:00:00Z", "events": []}],
+                "count": 1,
+                "next_page": None,
+            },
+        ),
+    )
+
+    page = client.get_ticket_audits_page(1)
+
+    assert [audit.id for audit in page.audits] == [10]
+    assert page.has_more is False
+    assert page.after_cursor is None
+
+
+def test_get_ticket_audits_page_rejects_incomplete_pagination(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A missing cursor must not make a page look complete."""
+    client = _build_client()
+    monkeypatch.setattr(
+        client.client,
+        "post",
+        lambda *_args, **_kwargs: _response({"access_token": "access-token", "expires_in": 1800}),
+    )
+    monkeypatch.setattr(
+        client.client,
+        "request",
+        lambda **_kwargs: _response({"audits": [], "meta": {"has_more": True, "after_cursor": None}}),
+    )
+
+    with pytest.raises(ValueError, match="cursor"):
+        client.get_ticket_audits_page(1)
+    with pytest.raises(ValueError, match="blank"):
+        client.get_ticket_audits_page(1, after_cursor=" ")
+
+
+def test_comment_carries_its_html_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The formatted body rides beside the plain one, and a comment without it still reads."""
+    client = _build_client()
+    monkeypatch.setattr(
+        client.client,
+        "post",
+        lambda *_args, **_kwargs: _response({"access_token": "access-token", "expires_in": 1800}),
+    )
+    monkeypatch.setattr(
+        client.client,
+        "request",
+        lambda **_kwargs: _response(
+            {
+                "comments": [
+                    {
+                        "id": 1,
+                        "public": True,
+                        "plain_body": "Order 12",
+                        "html_body": "<table><tr><td>Order</td><td>12</td></tr></table>",
+                        "attachments": [],
+                    },
+                    {"id": 2, "public": True, "plain_body": "Thanks", "attachments": []},
+                ],
+                "meta": {"has_more": False, "after_cursor": None},
+            },
+        ),
+    )
+
+    first, second = client.get_ticket_comments(1)
+
+    assert first.html_body == "<table><tr><td>Order</td><td>12</td></tr></table>"
+    assert second.html_body is None
